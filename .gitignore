@@ -1,0 +1,11 @@
+*.pyc
+*.pyo
+__pycache__/
+*.egg*
+version.py
+
+/build
+/dist
+
+/.coverage
+/htmlcov/
