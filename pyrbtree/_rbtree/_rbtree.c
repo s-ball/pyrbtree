@@ -4,7 +4,12 @@
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 
+// The module object
 static PyObject* mod = NULL;
+
+// Exception names
+static const char* subexc[] = { "INSERT_ERROR", "BLACK_VIOLATION", "RED_VIOLATION",
+    "RED_ROOT", "DEPTH_ERROR", "ORDER_ERROR", "COUNT_ERROR", };
 
 /*
  * Documentation for _rbtree.
@@ -39,7 +44,8 @@ static PyObject* RBIterObjectNext(RBIterObject* self) {
 }
 
 static PyMethodDef iter_methods[] = {
-    {"next", (PyCFunction)RBIterObjectNext, METH_NOARGS, "Get next element"},
+    {"next", (PyCFunction)RBIterObjectNext, METH_NOARGS,
+    PyDoc_STR("Get next element")},
     {NULL},
 };
 
@@ -101,16 +107,40 @@ static PyObject *RBTreeInsert(RBTreeObject *self, PyObject* args) {
     int err = 0;
     PyObject* previous = RBinsert(&self->tree, data, &err);
     if (err) {
-        PyErr_SetString(PyExc_RuntimeError, "Could not insert element");
+        PyObject* exc = PyObject_GetAttrString(mod, subexc[0]);
+        if (exc) {
+            PyErr_SetString(exc, "Could not insert element");
+            Py_DECREF(exc);
+        }
+        else {
+            PyErr_SetString(PyExc_RuntimeError, "Could not insert element");
+        }
         return NULL;
     }
     Py_INCREF(data);
     return (NULL == previous) ? Py_None : previous;
 }
 
-static PyObject* RBTreeFirst(RBTreeObject* self, PyObject *args) {
+static PyObject* RBTreeRemove(RBTreeObject* self, PyObject* args) {
+    PyObject* data = NULL;
+    int cr = PyArg_UnpackTuple(args, "key", 1, 1, &data);
+    if (!cr) return NULL;
+    PyObject* old = RBremove(&self->tree, data);
+    if (!old) Py_RETURN_NONE;
+    return old;
+}
+
+static PyObject* RBTreeFind(RBTreeObject* self, PyObject* args) {
+    PyObject* data = NULL;
+    int cr = PyArg_UnpackTuple(args, "key", 1, 1, &data);
+    if (!cr) return NULL;
+    PyObject* old = RBfind(&self->tree, data);
+    if (!old) Py_RETURN_NONE;
+    return old;
+}
+
+static PyObject* build_iter(RBIter *iter) {
     RBIterObject* iterobj = NULL;
-    RBIter* iter = RBfirst(&self->tree);
     if (NULL == iter) {
         PyErr_SetString(PyExc_MemoryError, "Could not allocate iterator");
         return NULL;
@@ -125,12 +155,29 @@ except:
     if (iter) RBiter_release(iter);
 finally:
     Py_XDECREF(itertyp);
-    return (PyObject*) iterobj;
+    return (PyObject*)iterobj;
+}
+
+static PyObject* RBTreeSearch(RBTreeObject* self, PyObject* args) {
+    PyObject* data = NULL;
+    int cr = PyArg_UnpackTuple(args, "key", 1, 1, &data);
+    if (!cr) return NULL;
+    RBIter* iter = RBsearch(&self->tree, data);
+    return build_iter(iter);
+}
+
+static PyObject* RBTreeFirst(RBTreeObject* self, PyObject *args) {
+    RBIterObject* iterobj = NULL;
+    RBIter* iter = RBfirst(&self->tree);
+    return build_iter(iter);
 }
 
 static PyMethodDef methods[] = {
-    {"insert", (PyCFunction)RBTreeInsert, METH_VARARGS, "Inserts a element"},
-    {"first", (PyCFunction)RBTreeFirst, METH_NOARGS, "Get an iterator on first element" },
+    {"insert", (PyCFunction)RBTreeInsert, METH_VARARGS, PyDoc_STR("Inserts an element")},
+    {"remove", (PyCFunction)RBTreeRemove, METH_VARARGS, PyDoc_STR("Removes an element")},
+    {"find", (PyCFunction)RBTreeFind, METH_VARARGS, PyDoc_STR("Finds an element")},
+    {"search", (PyCFunction)RBTreeSearch, METH_VARARGS, PyDoc_STR("Searches for an element")},
+    {"first", (PyCFunction)RBTreeFirst, METH_NOARGS, PyDoc_STR("Gets an iterator on first element") },
     {NULL},
 };
 
@@ -151,6 +198,7 @@ static PyType_Spec RBTreeTypeSpec = {
 
 PyMODINIT_FUNC PyInit__rbtree() {
     PyObject* typ = NULL;
+    PyObject* base_exc = NULL;
     mod = PyModule_Create(&_rbtree_def);
     if (!mod) goto except;
     typ = PyType_FromSpec(&RBTreeTypeSpec);
@@ -162,11 +210,25 @@ PyMODINIT_FUNC PyInit__rbtree() {
     cr = PyModule_AddObjectRef(mod, "RBIter", typ);
     Py_DECREF(typ);
     if (cr) goto except;
+    // Add Exception classes
+    base_exc = PyErr_NewException("RBError", NULL, NULL);
+    if (!base_exc) goto except;
+    cr = PyModule_AddObjectRef(mod, "RBError", typ);
+    if (cr) goto except;
+    for (int i = 0; i < sizeof(subexc) / sizeof(*subexc); i++) {
+        typ = PyErr_NewException(subexc[i], base_exc, NULL);
+        if (!typ) goto except;
+        cr = PyModule_AddObjectRef(mod, subexc[i], typ);
+        Py_DECREF(typ);
+        if (cr) goto except;
+    }
     if (0 != PyModule_AddStringConstant(mod, "__author__", "SBA")) goto except;
     goto finally;
 
 except:
      if (mod) Py_DECREF(mod);
+
 finally:
+    if (base_exc) Py_DECREF(base_exc);
     return mod;
 }
