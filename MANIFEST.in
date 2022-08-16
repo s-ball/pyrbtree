@@ -1,0 +1,2 @@
+include pyrbtree/CRBTree/rbtree/*.h
+exclude .gitignore

@@ -1,0 +1,3 @@
+[submodule "pyrbtree/CRBTree"]
+	path = pyrbtree/CRBTree
+	url = https://github.com/s-ball/CRBTree.git

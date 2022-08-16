@@ -1,4 +1,4 @@
-#include "CRBTree/rbtree/rbtree.h"
+#include "rbtree.h"
 
 #define Py_LIMITED_API
 #define PY_SSIZE_T_CLEAN
@@ -163,11 +163,6 @@ PyMODINIT_FUNC PyInit__rbtree() {
     Py_DECREF(typ);
     if (cr) goto except;
     if (0 != PyModule_AddStringConstant(mod, "__author__", "SBA")) goto except;
-    char versionstr[12];
-    unsigned const char *version = RBversion();
-    sprintf(versionstr, "%d.%d.%d", version[0], version[1], version[2]);
-    if (0 != PyModule_AddStringConstant(mod, "__version__", versionstr)) goto except;
-    if (0 != PyModule_AddIntConstant(mod, "year", 2022)) goto except;
     goto finally;
 
 except:
