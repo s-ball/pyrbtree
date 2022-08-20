@@ -3,13 +3,14 @@
 #define Py_LIMITED_API
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
+#include <structmember.h>
 
 // The module object
 static PyObject* mod = NULL;
 
 // Exception names
-static const char* subexc[] = { "INSERT_ERROR", "BLACK_VIOLATION", "RED_VIOLATION",
-    "RED_ROOT", "DEPTH_ERROR", "ORDER_ERROR", "COUNT_ERROR", };
+static const char* subexc[] = { "InsertError", "SearchError", };
+static const char* err_label = "Incompatible types";
 
 /*
  * Documentation for _rbtree.
@@ -100,6 +101,43 @@ static void RBTree_dealloc(RBTreeObject* self) {
     RBdestroy(&self->tree, node_deleter);
 }
 
+int wrap_exception(const char *exc_name, const char* label) {
+    PyObject* exc, * val, * val2, * tb;
+    PyObject* exc_type = NULL;
+
+    if (NULL == PyErr_Occurred()) {
+        exc_type = PyObject_GetAttrString(mod, exc_name);
+        if (NULL == exc_type) {
+            exc_type = PyExc_RuntimeError;
+            Py_INCREF(exc_type);
+        }
+        PyErr_SetString(exc_type, label);
+    }
+    else {
+        PyErr_Fetch(&exc, &val, &tb);
+        PyErr_NormalizeException(&exc, &val, &tb);
+        if (tb != NULL) {
+            PyException_SetTraceback(val, tb);
+            Py_DECREF(tb);
+        }
+        Py_DECREF(exc);
+        exc_type = PyObject_GetAttrString(mod, exc_name);
+        if (NULL == exc_type) {
+            exc_type = PyExc_RuntimeError;
+            Py_INCREF(exc_type);
+        }
+        PyErr_SetString(exc_type, label);
+        PyErr_Fetch(&exc, &val2, &tb);
+        PyErr_NormalizeException(&exc, &val2, &tb);
+        Py_INCREF(val);
+        PyException_SetCause(val2, val);
+        PyException_SetContext(val2, val);
+        PyErr_Restore(exc, val2, tb);
+    }
+    Py_DECREF(exc_type);
+    return 1;
+}
+
 static PyObject *RBTreeInsert(RBTreeObject *self, PyObject* args) {
     PyObject* data = NULL;
     int cr = PyArg_UnpackTuple(args, "value", 1, 2, &data);
@@ -107,15 +145,8 @@ static PyObject *RBTreeInsert(RBTreeObject *self, PyObject* args) {
     int err = 0;
     PyObject* previous = RBinsert(&self->tree, data, &err);
     if (err) {
-        PyObject* exc = PyObject_GetAttrString(mod, subexc[0]);
-        if (exc) {
-            PyErr_SetString(exc, "Could not insert element");
-            Py_DECREF(exc);
-        }
-        else {
-            PyErr_SetString(PyExc_RuntimeError, "Could not insert element");
-        }
-        return NULL;
+        wrap_exception(subexc[0], err_label);
+       return NULL;
     }
     Py_INCREF(data);
     return (NULL == previous) ? Py_None : previous;
@@ -126,7 +157,12 @@ static PyObject* RBTreeRemove(RBTreeObject* self, PyObject* args) {
     int cr = PyArg_UnpackTuple(args, "key", 1, 1, &data);
     if (!cr) return NULL;
     PyObject* old = RBremove(&self->tree, data);
-    if (!old) Py_RETURN_NONE;
+    if (!old) {
+        if (NULL != PyErr_Occurred()) {
+            PyErr_Clear();
+        }
+        Py_RETURN_NONE;
+    }
     return old;
 }
 
@@ -135,14 +171,19 @@ static PyObject* RBTreeFind(RBTreeObject* self, PyObject* args) {
     int cr = PyArg_UnpackTuple(args, "key", 1, 1, &data);
     if (!cr) return NULL;
     PyObject* old = RBfind(&self->tree, data);
-    if (!old) Py_RETURN_NONE;
+    if (!old) {
+        if (NULL != PyErr_Occurred()) {
+            PyErr_Clear();
+        }
+        Py_RETURN_NONE;
+    }
     return old;
 }
 
 static PyObject* build_iter(RBIter *iter) {
     RBIterObject* iterobj = NULL;
     if (NULL == iter) {
-        PyErr_SetString(PyExc_MemoryError, "Could not allocate iterator");
+        wrap_exception(subexc[1], err_label);
         return NULL;
     }
     PyTypeObject* itertyp = (PyTypeObject*)PyObject_GetAttrString(mod, "RBIter");
@@ -181,10 +222,16 @@ static PyMethodDef methods[] = {
     {NULL},
 };
 
+static PyMemberDef members[] = {
+    {"count", T_UINT, offsetof(RBTree, count) + offsetof(RBTreeObject, tree),
+     READONLY, PyDoc_STR("Number of elements in the tree")},
+};
+
 static PyType_Slot RBtreeSlot[] = {
     {Py_tp_doc, PyDoc_STR("Internal RBTree")},
     {Py_tp_init, (initproc) RBTree_init},
     {Py_tp_methods, methods},
+    {Py_tp_members, members},
     {Py_tp_dealloc, RBTree_dealloc},
     {0, NULL},
 };
@@ -211,12 +258,15 @@ PyMODINIT_FUNC PyInit__rbtree() {
     Py_DECREF(typ);
     if (cr) goto except;
     // Add Exception classes
-    base_exc = PyErr_NewException("RBError", NULL, NULL);
+    base_exc = PyErr_NewException("pyrbtree.RBError", NULL, NULL);
     if (!base_exc) goto except;
-    cr = PyModule_AddObjectRef(mod, "RBError", typ);
+    cr = PyModule_AddObjectRef(mod, "pyrbtree.RBError", typ);
     if (cr) goto except;
     for (int i = 0; i < sizeof(subexc) / sizeof(*subexc); i++) {
-        typ = PyErr_NewException(subexc[i], base_exc, NULL);
+        char name[32];
+        strcpy(name, "pyrbtree.");
+        strcat(name, subexc[i]);
+        typ = PyErr_NewException(name, base_exc, NULL);
         if (!typ) goto except;
         cr = PyModule_AddObjectRef(mod, subexc[i], typ);
         Py_DECREF(typ);
