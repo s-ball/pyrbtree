@@ -98,9 +98,27 @@ static int obj_comp(const void* first, const void* second, int *err) {
     return (cr == 0);
 }
 
+static int key_comp(const void* first, const void* second, int* err) {
+    if ((!PyTuple_Check((PyObject*)first)) || (!PyTuple_Check((PyObject*)second))) {
+        goto except;
+    }
+    PyObject* ofirst = PyTuple_GetItem((PyObject*)first, 0);
+    PyObject* osecond = PyTuple_GetItem((PyObject*)second, 0);
+    if ((NULL == ofirst) || (NULL == osecond)) {
+        goto except;
+    }
+    return obj_comp(ofirst, osecond, err);
+except:
+    PyErr_SetString(PyExc_TypeError, "Tuple expected");
+    *err = 1;
+    return 0;
+}
+
 static int
 RBTree_init(RBTreeObject* self, PyObject* args, PyObject* kwds) {
-    RBinit2(&self->tree, obj_comp);
+    int mapping = 0;
+    if (! PyArg_ParseTuple(args, "|p", &mapping)) return -1;
+    RBinit2(&self->tree, mapping ? key_comp : obj_comp);
     return 0;
 }
 
@@ -148,7 +166,7 @@ int wrap_exception(const char *exc_name, const char* label) {
     return 1;
 }
 
-static PyObject *RBTreeInsert(RBTreeObject *self, PyObject* args) {
+static PyObject* RBTreeInsert(RBTreeObject* self, PyObject* args) {
     PyObject* data = NULL;
     int cr = PyArg_UnpackTuple(args, "value", 1, 2, &data);
     if (!cr) return NULL;
@@ -156,10 +174,14 @@ static PyObject *RBTreeInsert(RBTreeObject *self, PyObject* args) {
     PyObject* previous = RBinsert(&self->tree, data, &err);
     if (err) {
         wrap_exception(subexc[0], err_label);
-       return NULL;
+        return NULL;
     }
     Py_INCREF(data);
-    return (NULL == previous) ? Py_None : previous;
+    if (NULL == previous) {
+        previous = Py_None;
+    }
+    Py_INCREF(previous);
+    return previous;
 }
 
 static PyObject* RBTreeRemove(RBTreeObject* self, PyObject* args) {
@@ -176,10 +198,7 @@ static PyObject* RBTreeRemove(RBTreeObject* self, PyObject* args) {
     return old;
 }
 
-static PyObject* RBTreeFind(RBTreeObject* self, PyObject* args) {
-    PyObject* data = NULL;
-    int cr = PyArg_UnpackTuple(args, "key", 1, 1, &data);
-    if (!cr) return NULL;
+static PyObject* find(RBTreeObject* self, PyObject* data) {
     PyObject* old = RBfind(&self->tree, data);
     if (!old) {
         if (NULL != PyErr_Occurred()) {
@@ -189,6 +208,60 @@ static PyObject* RBTreeFind(RBTreeObject* self, PyObject* args) {
     }
     Py_INCREF(old);
     return old;
+}
+
+static PyObject* RBTreeGetItem(RBTreeObject* self, PyObject* key) {
+    PyObject* obj = PyTuple_Pack(2, key, Py_None);
+    if (NULL == obj) return NULL;
+    PyObject* old = find(self, obj);
+    Py_DECREF(obj);
+    if (old == Py_None) {
+        Py_DECREF(old);
+        PyErr_SetString(PyExc_KeyError, "Not found");
+        return NULL;
+    }
+    obj = old;
+    old = PyTuple_GetItem(obj, 1);
+    Py_INCREF(old);
+    Py_DECREF(obj);
+    return old;
+}
+
+static PyObject* build_args(PyObject* key, PyObject* val) {
+    PyObject* obj = PyTuple_Pack(2, key, val);
+    if (NULL == obj) return NULL;
+    PyObject* args = PyTuple_Pack(1, obj);
+    Py_DECREF(obj);
+    return args;
+}
+static int RBTreeSetItem(RBTreeObject* self, PyObject* key, PyObject* val) {
+    PyObject* args, *old = NULL;
+    if (NULL == val) {
+        args = build_args(key, Py_None);
+        if (NULL == args) return -1;
+        old = RBTreeRemove(self, args);
+        Py_DECREF(args);
+        if (Py_None == old) {
+            Py_DECREF(old);
+            PyErr_SetString(PyExc_KeyError, "Not found");
+            return -1;
+        }
+    }
+    else {
+        args = build_args(key, val);
+        old = RBTreeInsert(self, args);
+        Py_DECREF(args);
+        if (NULL == old) return -1;
+    }
+    Py_DECREF(old);
+    return 0;
+}
+
+static PyObject* RBTreeFind(RBTreeObject* self, PyObject* args) {
+    PyObject* data = NULL;
+    int cr = PyArg_UnpackTuple(args, "key", 1, 1, &data);
+    if (!cr) return NULL;
+    return find(self, data);
 }
 
 static PyObject* build_iter(RBIter *iter) {
@@ -244,12 +317,19 @@ static PyMemberDef members[] = {
     {NULL}
 };
 
+Py_ssize_t RBTree_length(PyObject* self) {
+    return ((RBTreeObject*)self)->tree.count;
+}
+
 static PyType_Slot RBtreeSlot[] = {
     {Py_tp_doc, PyDoc_STR("Internal RBTree")},
     {Py_tp_init, (initproc) RBTree_init},
     {Py_tp_methods, methods},
     {Py_tp_members, members},
     {Py_tp_iter, RBTree_iter},
+    {Py_mp_length, RBTree_length},
+    {Py_mp_subscript, RBTreeGetItem},
+    {Py_mp_ass_subscript, RBTreeSetItem},
     {Py_tp_dealloc, RBTree_dealloc},
     {0, NULL},
 };
