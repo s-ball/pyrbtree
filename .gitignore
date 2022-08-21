@@ -9,3 +9,4 @@ version.py
 
 /.coverage
 /htmlcov/
+/pyrbtree/_rbtree.*.pyd

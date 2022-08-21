@@ -187,6 +187,7 @@ static PyObject* RBTreeFind(RBTreeObject* self, PyObject* args) {
         }
         Py_RETURN_NONE;
     }
+    Py_INCREF(old);
     return old;
 }
 
