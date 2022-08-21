@@ -38,10 +38,18 @@ static void RBIter_dealloc(RBIterObject* self) {
 static PyObject* RBIterObjectNext(RBIterObject* self) {
     PyObject* data = RBnext(self->iter);
     if (NULL == data) {
-        Py_RETURN_NONE;
+        if (NULL == PyErr_Occurred()) {
+            PyErr_SetString(PyExc_StopIteration, "");
+        }
     }
-    Py_INCREF(data);
+    else {
+        Py_INCREF(data);
+    }
     return data;
+}
+
+static PyObject* RBIterObject_iter(PyObject* self) {
+    return self;
 }
 
 static PyMethodDef iter_methods[] = {
@@ -53,6 +61,8 @@ static PyMethodDef iter_methods[] = {
 static PyType_Slot RBIterSlot[] = {
     {Py_tp_doc, PyDoc_STR("Internal RBIter")},
     {Py_tp_methods, iter_methods},
+    {Py_tp_iter, RBIterObject_iter},
+    {Py_tp_iternext, RBIterObjectNext},
     {Py_tp_dealloc, RBIter_dealloc},
     {0, NULL},
 };
@@ -208,9 +218,12 @@ static PyObject* RBTreeSearch(RBTreeObject* self, PyObject* args) {
 }
 
 static PyObject* RBTreeFirst(RBTreeObject* self, PyObject *args) {
-    RBIterObject* iterobj = NULL;
     RBIter* iter = RBfirst(&self->tree);
     return build_iter(iter);
+}
+
+static PyObject* RBTree_iter(PyObject* self) {
+    return RBTreeFirst((RBTreeObject*)self, NULL);
 }
 
 static PyMethodDef methods[] = {
@@ -223,8 +236,11 @@ static PyMethodDef methods[] = {
 };
 
 static PyMemberDef members[] = {
+    {"black_depth", T_UINT, offsetof(RBTree, black_depth) + offsetof(RBTreeObject, tree),
+     READONLY, PyDoc_STR("Black depth of the (red-black) tree")},
     {"count", T_UINT, offsetof(RBTree, count) + offsetof(RBTreeObject, tree),
      READONLY, PyDoc_STR("Number of elements in the tree")},
+    {NULL}
 };
 
 static PyType_Slot RBtreeSlot[] = {
@@ -232,6 +248,7 @@ static PyType_Slot RBtreeSlot[] = {
     {Py_tp_init, (initproc) RBTree_init},
     {Py_tp_methods, methods},
     {Py_tp_members, members},
+    {Py_tp_iter, RBTree_iter},
     {Py_tp_dealloc, RBTree_dealloc},
     {0, NULL},
 };
