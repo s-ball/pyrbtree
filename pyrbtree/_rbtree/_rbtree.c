@@ -178,9 +178,8 @@ static PyObject* RBTreeInsert(RBTreeObject* self, PyObject* args) {
     }
     Py_INCREF(data);
     if (NULL == previous) {
-        previous = Py_None;
+        Py_RETURN_NONE;
     }
-    Py_INCREF(previous);
     return previous;
 }
 

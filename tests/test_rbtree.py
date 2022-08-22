@@ -3,6 +3,7 @@
 import unittest
 import pyrbtree
 import random
+import sys
 
 
 class TestRBTree(unittest.TestCase):
@@ -72,6 +73,18 @@ class TestRBTree(unittest.TestCase):
         random.shuffle(data)
         for elt in data:
             self.assertEqual(elt, tree.find(elt))
+
+    def test_refcount(self):
+        tree = pyrbtree._rbtree.RBTree()
+        a, b = 'aa', 'bb'
+        ra, rb = sys.getrefcount(a), sys.getrefcount(b)
+        tree.insert(a)
+        self.assertEqual(ra+1, sys.getrefcount(a))
+        self.assertEqual(a, tree.remove(a))
+        self.assertEqual(ra, sys.getrefcount(a))
+        tree.insert(b)
+        del tree
+        self.assertEqual(rb, sys.getrefcount(b))
 
 
 if __name__ == '__main__':
