@@ -89,5 +89,5 @@ class TreeMap(abc.MutableMapping):
         return self._tree.count
 
     def __repr__(self):
-        return '{' + ', '.join(': '.join(str(i) for i in elt)
+        return '{' + ', '.join(': '.join(repr(i) for i in elt)
                                for elt in self._tree) + '}'
