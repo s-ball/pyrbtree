@@ -11,6 +11,7 @@ kwargs = dict(
                                          os.path.join('pyrbtree', 'CRBTree', 'rbtree', 'rbtree.c'),
                                          os.path.join('pyrbtree', 'CRBTree', 'rbtree', 'rbversion.c')],
                   include_dirs=[os.path.join('pyrbtree', 'CRBTree', 'rbtree')],
+                  py_limited_api = True,
                   define_macros=[('EXPORT', '')]
                   )])
 

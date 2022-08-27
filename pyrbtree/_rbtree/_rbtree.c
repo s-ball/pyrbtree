@@ -1,6 +1,6 @@
 #include "rbtree.h"
 
-#define Py_LIMITED_API
+#define Py_LIMITED_API 0x03070000
 #define PY_SSIZE_T_CLEAN
 #include <Python.h>
 #include <structmember.h>
@@ -347,27 +347,37 @@ PyMODINIT_FUNC PyInit__rbtree() {
     if (!mod) goto except;
     typ = PyType_FromSpec(&RBTreeTypeSpec);
     if (!typ) goto except;
-    int cr = PyModule_AddObjectRef(mod, "RBTree", typ);
-    Py_DECREF(typ);
+    int cr = PyModule_AddObject(mod, "RBTree", typ);
+    if (cr) {
+        Py_DECREF(typ);
+        goto except;
+    }
     typ = PyType_FromSpec(&RBIterTypeSpec);
     if (!typ) goto except;
-    cr = PyModule_AddObjectRef(mod, "RBIter", typ);
-    Py_DECREF(typ);
-    if (cr) goto except;
+    cr = PyModule_AddObject(mod, "RBIter", typ);
+    if (cr) {
+        Py_DECREF(typ);
+        goto except;
+    }
     // Add Exception classes
     base_exc = PyErr_NewException("pyrbtree.RBError", NULL, NULL);
     if (!base_exc) goto except;
-    cr = PyModule_AddObjectRef(mod, "pyrbtree.RBError", typ);
-    if (cr) goto except;
+    cr = PyModule_AddObject(mod, "pyrbtree.RBError", base_exc);
+    if (cr) {
+        Py_DECREF(base_exc);
+        goto except;
+    }
     for (int i = 0; i < sizeof(subexc) / sizeof(*subexc); i++) {
         char name[32];
         strcpy(name, "pyrbtree.");
         strcat(name, subexc[i]);
         typ = PyErr_NewException(name, base_exc, NULL);
         if (!typ) goto except;
-        cr = PyModule_AddObjectRef(mod, subexc[i], typ);
-        Py_DECREF(typ);
-        if (cr) goto except;
+        cr = PyModule_AddObject(mod, subexc[i], typ);
+        if (cr) {
+            Py_DECREF(typ);
+            goto except;
+        }
     }
     if (0 != PyModule_AddStringConstant(mod, "__author__", "SBA")) goto except;
     goto finally;
@@ -376,6 +386,5 @@ except:
      if (mod) Py_DECREF(mod);
 
 finally:
-    if (base_exc) Py_DECREF(base_exc);
     return mod;
 }

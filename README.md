@@ -75,4 +75,4 @@ still to be implemented.
 
 ## License
 
-This work is licenced under a MIT Licence. See [LICENSE.txt](https://github.com/s-ball/pyrbtree/blob/master/LICENCE.txt)
+This work is licenced under a MIT Licence. See [LICENSE.txt](https://github.com/s-ball/pyrbtree/blob/master/LICENSE.txt)
