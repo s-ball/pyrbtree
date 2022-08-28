@@ -1,5 +1,5 @@
 #  Copyright (c) 2022 SBA - MIT License
-
+import sys
 import unittest
 from pyrbtree import TreeSet, TreeMap
 
@@ -23,6 +23,26 @@ class TestTreeSet(unittest.TestCase):
 
     def test_repr(self):
         self.assertEqual("{'a', 'b', 'c', 'd'}", repr(self.ts))
+
+    def test_copy(self):
+        a = 'aa'
+        b = 'bb'
+        ra = sys.getrefcount(a)
+        rb = sys.getrefcount(b)
+        ts = TreeSet((a, b))
+        self.assertEqual(ra + 1, sys.getrefcount(a))
+        self.assertEqual(rb + 1, sys.getrefcount(b))
+        t2 = ts.copy()
+        self.assertEqual(ra + 2, sys.getrefcount(a))
+        self.assertEqual(rb + 2, sys.getrefcount(b))
+        ts.discard('aa')
+        self.assertEqual(ra + 1, sys.getrefcount(a))
+        t2.discard('aa')
+        self.assertEqual(ra, sys.getrefcount(a))
+        del ts
+        self.assertEqual(rb + 1, sys.getrefcount(b))
+        del t2
+        self.assertEqual(rb, sys.getrefcount(b))
 
 
 class TestTreeMap(unittest.TestCase):

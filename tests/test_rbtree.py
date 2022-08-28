@@ -86,6 +86,20 @@ class TestRBTree(unittest.TestCase):
         del tree
         self.assertEqual(rb, sys.getrefcount(b))
 
+    def test_clone(self):
+        tree = pyrbtree._rbtree.RBTree()
+        a, b = 'aa', 'bb'
+        ra, rb = sys.getrefcount(a), sys.getrefcount(b)
+        tree.insert(a)
+        tree.insert(b)
+        t2 = tree.clone()
+        self.assertEqual(ra+2, sys.getrefcount(a))
+        self.assertEqual(rb+2, sys.getrefcount(b))
+        tree.remove('aa')
+        self.assertEqual(ra+1, sys.getrefcount(a))
+        t2.remove('aa')
+        self.assertEqual(ra, sys.getrefcount(a))
+
 
 if __name__ == '__main__':
     unittest.main()

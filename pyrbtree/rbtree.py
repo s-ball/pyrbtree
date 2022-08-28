@@ -41,6 +41,14 @@ class TreeSet(abc.MutableSet):
     def __repr__(self):
         return '{' + ', '.join(repr(elt) for elt in self._tree) + '}'
 
+    def __copy__(self):
+        t2 = TreeSet()
+        t2._tree = self._tree.clone()
+        return t2
+
+    def copy(self):
+        return self.__copy__()
+
 
 class TreeMapIter:
     def __init__(self, it: _rbtree.RBIter):
@@ -91,3 +99,11 @@ class TreeMap(abc.MutableMapping):
     def __repr__(self):
         return '{' + ', '.join(': '.join(repr(i) for i in elt)
                                for elt in self._tree) + '}'
+
+    def __copy__(self):
+        t2 = TreeMap()
+        t2._tree = self._tree.clone()
+        return t2
+
+    def copy(self):
+        return self.__copy__()

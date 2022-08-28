@@ -299,12 +299,32 @@ static PyObject* RBTree_iter(PyObject* self) {
     return RBTreeFirst((RBTreeObject*)self, NULL);
 }
 
+static PyObject* add_ref(PyObject* obj) {
+    Py_INCREF(obj);
+    return obj;
+}
+
+static PyObject* RBTreeClone(RBTreeObject* self) {
+    RBTreeObject* obj = NULL;
+    PyTypeObject* typ = (PyTypeObject*)PyObject_GetAttrString(mod, "RBTree");
+    if (NULL == typ) goto except;
+    obj = PyObject_New(RBTreeObject, typ);
+    Py_DECREF(typ);
+    if (NULL == obj) goto except;
+    RBTree * tree = RBclone(&self->tree, &add_ref);
+    memcpy(&(obj->tree), tree, sizeof(*tree));
+    free(tree);
+except:
+    return obj;
+}
+
 static PyMethodDef methods[] = {
     {"insert", (PyCFunction)RBTreeInsert, METH_VARARGS, PyDoc_STR("Inserts an element")},
     {"remove", (PyCFunction)RBTreeRemove, METH_VARARGS, PyDoc_STR("Removes an element")},
     {"find", (PyCFunction)RBTreeFind, METH_VARARGS, PyDoc_STR("Finds an element")},
     {"search", (PyCFunction)RBTreeSearch, METH_VARARGS, PyDoc_STR("Searches for an element")},
     {"first", (PyCFunction)RBTreeFirst, METH_NOARGS, PyDoc_STR("Gets an iterator on first element") },
+    {"clone", (PyCFunction)RBTreeClone, METH_NOARGS, PyDoc_STR("Duplicates a tree")},
     {NULL},
 };
 
